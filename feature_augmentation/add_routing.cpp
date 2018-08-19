@@ -26,18 +26,24 @@ int main(int argc, const char *argv[])
         return EXIT_FAILURE;
     }
     
-    // Read in coordinates
-    std::vector<std::vector<std::string>> routePairs;
     std::ifstream file(argv[2]);
-    std::string value;
-    while (getline(file, value)) {
-        std::vector<std::string> vec;
-        boost::algorithm::split(vec, value, boost::is_any_of(",;"));
-        routePairs.push_back(vec);
+    
+    // Read in header line to get indices of desired fields 
+    std::vector<std::string> header_items;
+    std::string header;
+    getline(file, header);
+    boost::algorithm::split(header_items, header, boost::is_any_of(","));
+    int key, lat1, lon1, lat2, lon2;
+    for (int i = 0; i < header_items.size(); i++){
+        if (header_items[i] == "key") key = i;
+	if (header_items[i] == "pickup_latitude") lat1 = i;
+        if (header_items[i] == "pickup_longitude") lon1 = i;
+        if (header_items[i] == "dropoff_latitude") lat2 = i;
+        if (header_items[i] == "dropoff_longitude") lon2 = i;
     }
 
     using namespace osrm;
-    
+
     // Configure based on a .osrm base path, and no datasets in shared mem from osrm-datastore
     EngineConfig config;
 
@@ -47,31 +53,38 @@ int main(int argc, const char *argv[])
     // We support two routing speed up techniques:
     // - Contraction Hierarchies (CH): requires extract+contract pre-processing
     // - Multi-Level Dijkstra (MLD): requires extract+partition+customize pre-processing
-    //
-    config.algorithm = EngineConfig::Algorithm::CH;
-    // config.algorithm = EngineConfig::Algorithm::MLD;
+    config.algorithm = EngineConfig::Algorithm::MLD;
 
     // Routing machine with several services (such as Route, Table, Nearest, Trip, Match)
     const OSRM osrm{config};
- 
+
     std::ofstream route_file;
-    route_file.open("route_info.txt");
-    for (int i = 0; i < routePairs.size(); i++) {
-        // The following shows how to use the Route service; configure this service
-        RouteParameters params;
+    route_file.open("out.txt");
+    route_file << "key,distance,duration,summary" << std::endl;
+    int zero_count = 0;
+    int i = 0;
+    std::string value;
+    while (getline(file, value)) {
+        i += 1;
+	if (i % 100000 == 0) std::cout << "Processed " << i << " rows" << std::endl;
 
-        // Route in monaco
-        params.coordinates.push_back({util::FloatLongitude{std::stod(routePairs[i][0])}, util::FloatLatitude{std::stod(routePairs[i][1])}});
-            params.coordinates.push_back({util::FloatLongitude{std::stod(routePairs[i][2])}, util::FloatLatitude{std::stod(routePairs[i][3])}});
+	// Parse row
+	std::vector<std::string> row; 
+        boost::algorithm::split(row, value, boost::is_any_of(",")); 
+
+        if (row[lon1] == "" || row[lat1] == "" || row[lon2] == "" || row[lat2] == "") continue;
+
+	RouteParameters params;
+        params.coordinates.push_back({util::FloatLongitude{std::stod(row[lon1])}, util::FloatLatitude{std::stod(row[lat1])}});
+        params.coordinates.push_back({util::FloatLongitude{std::stod(row[lon2])}, util::FloatLatitude{std::stod(row[lat2])}});
         params.steps = true;
-
-        // Response is in JSON format
+        
+	// Response is in JSON format
         json::Object result;
 
         // Execute routing request, this does the heavy lifting
         const auto status = osrm.Route(params, result);
-        if (status == Status::Ok)
-        {
+        if (status == Status::Ok) {
             auto &routes = result.values["routes"].get<json::Array>();
             // Let's just use the first route
             auto &route = routes.values.at(0).get<json::Object>();
@@ -79,17 +92,15 @@ int main(int argc, const char *argv[])
             
             const auto distance = route.values["distance"].get<json::Number>().value;
             const auto duration = route.values["duration"].get<json::Number>().value;
-            
+            const auto summary = leg.values["summary"].get<json::String>().value;
+
             // Warn users if extract does not contain the default coordinates from above
-            if (distance == 0 || duration == 0)
-            {
-                std::cout << "Note: distance or duration is zero. ";
-                std::cout << "You are probably doing a query outside of the OSM extract.\n\n";
-            }
-            
-            route_file <<  distance << ",";
-            route_file << duration << ",";
-            route_file << "\"" << leg.values["summary"].get<json::String>().value << "\"" << std::endl;
+	    if (distance == 0 || duration == 0) {
+                zero_count += 1;
+	    } else {
+                route_file << row[key] << "," << distance << "," << duration << "," << "\"" << summary << "\"" << std::endl;
+	    }
+	    if (i % 10000 == 0) route_file.flush();
         }
         else if (status == Status::Error) {
             const auto code = result.values["code"].get<json::String>().value;
@@ -99,6 +110,7 @@ int main(int argc, const char *argv[])
             std::cout << "Message: " << code << "\n";
         }
     }
+    std::cout << "Could not find route for " << zero_count << " rows." << std::endl;
     route_file.close();
     return EXIT_SUCCESS;
 }
