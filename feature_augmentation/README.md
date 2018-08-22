@@ -26,4 +26,4 @@ make
 ./osrm-routing-from-file [osrm extract] [train/test.csv]
 ```
 
-The last command will generate an `out.txt``file with additional features for each key.
+The last command will generate an `out.txt` file with the full dataset with routing features appended.
