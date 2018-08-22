@@ -84,7 +84,7 @@ int main(int argc, const char *argv[])
             for (int j = 0; j < row.size(); j++) { // Write full row
                 route_file << row[j] << ",";
             }
-            route_file << ",,\"\"" << std::endl;
+            route_file << ",,\"\"\n";
         } else {
             RouteParameters params;
             params.coordinates.push_back({util::FloatLongitude{std::stod(row[lon1])}, util::FloatLatitude{std::stod(row[lat1])}});
@@ -108,17 +108,17 @@ int main(int argc, const char *argv[])
                 for (int j = 0; j < row.size(); j++) { // Write full row
                     route_file << row[j] << ",";
                 }
-                route_file << distance << "," << duration << "," << "\"" << summary << "\"" << std::endl;
+                route_file << distance << "," << duration << "," << "\"" << summary << "\"\n";
             }
             else if (status == Status::Error) {
                 // Some coordinates may be malformed in the input file
                 for (int j = 0; j < row.size(); j++) { // Write full row
                     route_file << row[j] << ",";
                 }
-                route_file << ",,\"\"" << std::endl;
+                route_file << ",,\"\"\n";
             }
         }
-        if (i % 100000 == 0) route_file.flush();
+        if (i % 50000 == 0) route_file.flush();
     }
     route_file.close();
     return EXIT_SUCCESS;
