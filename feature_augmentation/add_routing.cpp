@@ -16,13 +16,14 @@
 #include <string>
 #include <utility>
 #include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/join.hpp>
 
 #include <cstdlib>
 
 int main(int argc, const char *argv[])
 {
     if (argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " data.osrm\n" << " coord_pairs.csv";
+        std::cerr << "Usage: " << argv[0] << " data.osrm" << " coord_pairs.csv";
         return EXIT_FAILURE;
     }
     
@@ -32,6 +33,7 @@ int main(int argc, const char *argv[])
     std::vector<std::string> header_items;
     std::string header;
     getline(file, header);
+    if (header[header.size() - 1] == '\r') header.pop_back(); // Pop off carriage return
     boost::algorithm::split(header_items, header, boost::is_any_of(","));
     int key, lat1, lon1, lat2, lon2;
     for (int i = 0; i < header_items.size(); i++){
@@ -60,7 +62,11 @@ int main(int argc, const char *argv[])
 
     std::ofstream route_file;
     route_file.open("out.txt");
-    route_file << "key,distance,duration,summary" << std::endl;
+    for (int i = 0; i < header_items.size(); i++) {
+        route_file << header_items[i] << ",";
+    }
+    route_file << "distance,duration,summary" << std::endl;
+    
     int zero_count = 0;
     int i = 0;
     std::string value;
@@ -69,10 +75,17 @@ int main(int argc, const char *argv[])
 	if (i % 100000 == 0) std::cout << "Processed " << i << " rows" << std::endl;
 
 	// Parse row
-	std::vector<std::string> row; 
+	std::vector<std::string> row;
+	if (value[value.size() - 1] == '\r') value.pop_back(); // Pop off carriage return
         boost::algorithm::split(row, value, boost::is_any_of(",")); 
 
-        if (row[lon1] == "" || row[lat1] == "" || row[lon2] == "" || row[lat2] == "") continue;
+        for (int j = 0; j < row.size(); j++) {
+	    route_file << row[j] << ",";
+	}
+        if (row[lon1] == "" || row[lat1] == "" || row[lon2] == "" || row[lat2] == "") {
+	    route_file << ",,\"\"" << std::endl;
+	    continue;
+	}
 
 	RouteParameters params;
         params.coordinates.push_back({util::FloatLongitude{std::stod(row[lon1])}, util::FloatLatitude{std::stod(row[lat1])}});
@@ -97,10 +110,8 @@ int main(int argc, const char *argv[])
             // Warn users if extract does not contain the default coordinates from above
 	    if (distance == 0 || duration == 0) {
                 zero_count += 1;
-	    } else {
-                route_file << row[key] << "," << distance << "," << duration << "," << "\"" << summary << "\"" << std::endl;
 	    }
-	    if (i % 10000 == 0) route_file.flush();
+            route_file << distance << "," << duration << "," << "\"" << summary << "\"" << std::endl;
         }
         else if (status == Status::Error) {
             const auto code = result.values["code"].get<json::String>().value;
@@ -108,7 +119,9 @@ int main(int argc, const char *argv[])
 
             std::cout << "Code: " << code << "\n";
             std::cout << "Message: " << code << "\n";
+	    route_file << ",,\"\"" << std::endl;
         }
+	if (i % 10000 == 0) route_file.flush();
     }
     std::cout << "Could not find route for " << zero_count << " rows." << std::endl;
     route_file.close();
