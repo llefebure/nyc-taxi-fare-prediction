@@ -1,0 +1,8 @@
+pandas
+dask[complete]
+scikit-learn
+numpy
+gcsfs
+scipy
+folium
+geopandas

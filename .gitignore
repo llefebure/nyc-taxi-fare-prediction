@@ -1,6 +1,7 @@
 models/data/*.csv
-! models/data/s1_vocab.csv
-! models/data/s2_vocab.csv
+! models/data/summary1_freq.csv
+! models/data/summary2_freq.csv
+! models/data/summary_freq.csv
 
 */.ipynb_checkpoints/
 
