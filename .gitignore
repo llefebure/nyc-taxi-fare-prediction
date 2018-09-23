@@ -3,5 +3,5 @@ models/data/*.csv
 ! models/data/summary2_freq.csv
 ! models/data/summary_freq.csv
 
-*/.ipynb_checkpoints/
+.ipynb_checkpoints
 
